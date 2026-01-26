@@ -196,13 +196,23 @@
       overflow: hidden;
       border: 1px solid rgba(255,255,255,0.08);
     }
-    .pano-card img {
-      display: block;
-      width: 100%;
-      height: auto;
+    .pano-viewport {
+      position: relative;
+      overflow: hidden;
       max-height: 90vh;
-      object-fit: contain;
       background: #000;
+    }
+    .pano-card img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 90vh;
+      width: auto;
+      max-width: none;
+      background: #000;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-drag: none;
     }
     .pano-close {
       position: absolute;
@@ -267,7 +277,9 @@
   <div class="pano-overlay" id="panoOverlay" role="dialog" aria-modal="true" aria-label="Panoramic view">
     <div class="pano-card">
       <button class="pano-close" id="panoClose" aria-label="Close panorama">&times;</button>
-      <img id="panoImage" alt="Panoramic view">
+      <div class="pano-viewport">
+        <img id="panoImage" alt="Panoramic view">
+      </div>
       <div class="pano-meta" id="panoMeta"></div>
     </div>
   </div>
@@ -342,6 +354,7 @@
     const panoImage = document.getElementById('panoImage');
     const panoMeta = document.getElementById('panoMeta');
     const panoClose = document.getElementById('panoClose');
+    const panoViewport = panoImage.parentElement;
 
     function statusLabel(status) {
       if (status === 'available') return 'Available';
@@ -374,14 +387,22 @@
     function showPanorama(pano) {
       panoImage.onload = null;
       panoImage.onerror = null;
+      panoOverlay.style.display = 'flex';
+      panoMeta.textContent = pano.label;
+      panoImage.style.left = '0px';
+      panoImage.style.top = '0px';
       panoImage.src = pano.file;
       panoImage.alt = pano.label;
-      panoMeta.textContent = pano.label;
-      panoOverlay.style.display = 'flex';
-      // Fallback: if image cannot be loaded (CORS), open in new tab
+      panoImage.onload = () => {
+        // reset pan position
+        panoState.offsetX = 0;
+        panoState.isDown = false;
+        panoImage.style.left = '0px';
+        panoImage.style.cursor = 'grab';
+      };
       panoImage.onerror = () => {
-        window.open(pano.file, '_blank', 'noopener');
         panoOverlay.style.display = 'none';
+        alert('Could not load panorama. Please try again or open image directly: ' + pano.file);
       };
     }
 
@@ -580,6 +601,39 @@
     panoClose.addEventListener('click', hidePanorama);
     window.addEventListener('keydown', evt => {
       if (evt.key === 'Escape' && panoOverlay.style.display === 'flex') hidePanorama();
+    });
+
+    // Simple drag-to-pan for wide panoramas
+    const panoState = { isDown: false, startX: 0, startLeft: 0, offsetX: 0 };
+    function clampPan() {
+      const vw = panoViewport.clientWidth;
+      const iw = panoImage.naturalWidth * (panoImage.clientHeight / panoImage.naturalHeight || 1);
+      const maxLeft = 0;
+      const minLeft = Math.min(0, vw - iw);
+      const clamped = Math.max(minLeft, Math.min(maxLeft, panoState.offsetX));
+      panoImage.style.left = `${clamped}px`;
+    }
+    panoImage.addEventListener('pointerdown', e => {
+      panoState.isDown = true;
+      panoState.startX = e.clientX;
+      panoState.startLeft = parseFloat(panoImage.style.left) || 0;
+      panoImage.style.cursor = 'grabbing';
+      panoImage.setPointerCapture(e.pointerId);
+    });
+    panoImage.addEventListener('pointermove', e => {
+      if (!panoState.isDown) return;
+      const delta = e.clientX - panoState.startX;
+      panoState.offsetX = panoState.startLeft + delta;
+      clampPan();
+    });
+    panoImage.addEventListener('pointerup', e => {
+      panoState.isDown = false;
+      panoImage.style.cursor = 'grab';
+      panoImage.releasePointerCapture(e.pointerId);
+    });
+    panoImage.addEventListener('pointerleave', () => {
+      panoState.isDown = false;
+      panoImage.style.cursor = 'grab';
     });
 
 
