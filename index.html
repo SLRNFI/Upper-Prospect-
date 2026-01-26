@@ -88,6 +88,28 @@
       height: 100%;
       display: block;
     }
+    .pano-overlay-btn {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid #1f2937;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #1f2937;
+      z-index: 4;
+      opacity: 0.9;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    .pano-overlay-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    }
     .map-inline .error {
       padding: 20px;
       color: #b91c1c;
@@ -229,6 +251,7 @@
     <div class="map-frame" id="mapFrame">
       <div id="mapInline" class="map-inline" aria-label="Upper Prospect lot map"></div>
       <div class="map-tooltip" id="tooltip"></div>
+      <div id="panoButtons"></div>
     </div>
     <div class="helper">Hover or tap a coloured lot to see pricing and site details. Click a panorama icon to view the 360° image.</div>
   </div>
@@ -509,6 +532,36 @@
         // place hitbox above the node
         node.parentNode.insertBefore(hit, node.nextSibling);
       });
+      placePanoButtons(svg, panoNodes);
+    }
+
+    function placePanoButtons(svg, nodes) {
+      const buttonsWrap = document.getElementById('panoButtons');
+      buttonsWrap.innerHTML = '';
+      const frameRect = frame.getBoundingClientRect();
+      nodes.forEach(node => {
+        const pid = normalizePanoId(node.id);
+        const pano = pid ? panoMap.get(pid) : null;
+        if (!pano) return;
+        const ctm = node.getScreenCTM();
+        if (!ctm) return;
+        const pt = svg.createSVGPoint();
+        const bbox = node.getBBox();
+        pt.x = bbox.x + bbox.width / 2;
+        pt.y = bbox.y + bbox.height / 2;
+        const screenPoint = pt.matrixTransform(ctm);
+        const left = screenPoint.x - frameRect.left - 16;
+        const top = screenPoint.y - frameRect.top - 16;
+        const btn = document.createElement('button');
+        btn.className = 'pano-overlay-btn';
+        btn.style.left = `${left}px`;
+        btn.style.top = `${top}px`;
+        btn.textContent = pid ? pid.replace(/[^0-9]/g, '') : 'P';
+        btn.title = pano.label;
+        btn.addEventListener('click', () => showPanorama(pano));
+        buttonsWrap.appendChild(btn);
+      });
+      window.addEventListener('resize', () => placePanoButtons(svg, nodes), { once: true });
     }
 
     panoOverlay.addEventListener('click', evt => {
