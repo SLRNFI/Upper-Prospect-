@@ -388,14 +388,12 @@
     function showPanorama(pano) {
       panoImage.onload = null;
       panoImage.onerror = null;
-      panoOverlay.style.display = 'flex';
-      panoMeta.textContent = pano.label;
       panoImage.style.left = '0px';
       panoImage.style.top = '0px';
-      panoImage.src = pano.file;
       panoImage.alt = pano.label;
+      panoMeta.textContent = pano.label;
+      panoOverlay.style.display = 'flex';
       panoImage.onload = () => {
-        // reset pan position
         panoState.offsetX = 0;
         panoState.isDown = false;
         panoImage.style.left = '0px';
@@ -405,6 +403,7 @@
         panoOverlay.style.display = 'none';
         alert('Could not load panorama. Please try again or open image directly: ' + pano.file);
       };
+      panoImage.src = pano.file;
     }
 
     function hidePanorama() {
