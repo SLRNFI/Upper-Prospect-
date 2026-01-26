@@ -242,7 +242,9 @@
   </div>
 
   <script>
-    const SVG_URL = 'UpperPropsectMap_26.01.22.svg'; // change to your Squarespace CDN URL when embedding
+    // Use absolute paths so GitHub Pages/Squarespace loads assets reliably
+    const BASE = 'https://slrnfi.github.io/Upper-Prospect-/';
+    const SVG_URL = `${BASE}UpperPropsectMap_26.01.22.svg`; // change to your Squarespace CDN URL when embedding
 
     const lotData = [
       // Flamingo Lane - Estate (newly released)
@@ -286,12 +288,12 @@
     ];
 
     const panoPins = [
-      { id: '360PANO1', file: '360PANO1.jpg', label: 'Panorama 1' },
-      { id: '360PANO2', file: '360PANO2.jpg', label: 'Panorama 2' },
-      { id: '360PANO3', file: '360PANO3.jpg', label: 'Panorama 3' },
-      { id: '360PANO4', file: '360PANO4.jpg', label: 'Panorama 4' },
-      { id: '360PANO5', file: '360PANO5.jpg', label: 'Panorama 5' },
-      { id: '360PANO6', file: '360PANO6.jpg', label: 'Panorama 6' }
+      { id: '360PANO1', file: `${BASE}360PANO1.jpg`, label: 'Panorama 1' },
+      { id: '360PANO2', file: `${BASE}360PANO2.jpg`, label: 'Panorama 2' },
+      { id: '360PANO3', file: `${BASE}360PANO3.jpg`, label: 'Panorama 3' },
+      { id: '360PANO4', file: `${BASE}360PANO4.jpg`, label: 'Panorama 4' },
+      { id: '360PANO5', file: `${BASE}360PANO5.jpg`, label: 'Panorama 5' },
+      { id: '360PANO6', file: `${BASE}360PANO6.jpg`, label: 'Panorama 6' }
     ];
 
     const lotMap = new Map(lotData.map(lot => [lot.id, lot]));
