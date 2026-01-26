@@ -206,6 +206,21 @@
       font-size: 12px;
       color: var(--muted);
     }
+    .pano-shortcuts {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .pano-shortcuts button {
+      border: 1px solid var(--outline);
+      background: #f9fafb;
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
     @media (max-width: 720px) {
       body { padding: 12px; }
       .title { font-size: 18px; }
@@ -231,6 +246,7 @@
       <div class="map-tooltip" id="tooltip"></div>
     </div>
     <div class="helper">Hover or tap a coloured lot to see pricing and site details. Click a panorama icon to view the 360° image.</div>
+    <div class="pano-shortcuts" id="panoShortcuts"></div>
   </div>
 
   <div class="pano-overlay" id="panoOverlay" role="dialog" aria-modal="true" aria-label="Panoramic view">
@@ -340,7 +356,7 @@
       panoOverlay.style.display = 'flex';
       // Fallback: if image cannot be loaded (CORS), open in new tab
       panoImage.onerror = () => {
-        window.open(pano.file, '_blank');
+        window.open(pano.file, '_blank', 'noopener');
         panoOverlay.style.display = 'none';
       };
     }
@@ -458,11 +474,21 @@
         const pano = pid ? panoMap.get(pid) : null;
         if (!pano) return;
         node.classList.add('pano-pin');
-        node.style.pointerEvents = 'all';
-        node.setAttribute('pointer-events', 'all');
+        node.style.pointerEvents = 'visiblePainted';
+        node.setAttribute('pointer-events', 'visiblePainted');
+        node.setAttribute('tabindex', '0');
+        node.setAttribute('role', 'button');
+        node.setAttribute('title', `${pano.label}`);
         const trigger = () => showPanorama(pano);
         node.addEventListener('click', trigger);
+        node.addEventListener('pointerup', trigger);
         node.addEventListener('pointerenter', trigger);
+        node.addEventListener('keydown', evt => {
+          if (evt.key === 'Enter' || evt.key === ' ') {
+            evt.preventDefault();
+            trigger();
+          }
+        });
 
         const bbox = node.getBBox();
         const hit = svg.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -478,6 +504,7 @@
         hit.style.cursor = 'pointer';
 
         hit.addEventListener('click', trigger);
+        hit.addEventListener('pointerup', trigger);
         hit.addEventListener('pointerenter', trigger);
         hit.addEventListener('keydown', evt => {
           if (evt.key === 'Enter' || evt.key === ' ') {
@@ -545,6 +572,19 @@
     }
 
     loadSvg();
+
+    // Render fallback buttons to open panos directly (works even if SVG wiring fails)
+    function renderPanoShortcuts() {
+      const wrap = document.getElementById('panoShortcuts');
+      wrap.innerHTML = panoPins.map(p => `<button data-pano="${p.id}">${p.label}</button>`).join('');
+      wrap.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pano = panoMap.get(btn.getAttribute('data-pano'));
+          if (pano) showPanorama(pano);
+        });
+      });
+    }
+    renderPanoShortcuts();
   </script>
 </body>
 </html>
