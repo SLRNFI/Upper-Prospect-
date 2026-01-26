@@ -88,6 +88,14 @@
       height: 100%;
       display: block;
     }
+    #panoButtons {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    #panoButtons .pano-overlay-btn {
+      pointer-events: auto;
+    }
     .pano-overlay-btn {
       position: absolute;
       width: 32px;
@@ -561,7 +569,9 @@
         btn.addEventListener('click', () => showPanorama(pano));
         buttonsWrap.appendChild(btn);
       });
-      window.addEventListener('resize', () => placePanoButtons(svg, nodes), { once: true });
+      const onResize = () => placePanoButtons(svg, nodes);
+      window.removeEventListener('resize', onResize);
+      window.addEventListener('resize', onResize, { once: true });
     }
 
     panoOverlay.addEventListener('click', evt => {
