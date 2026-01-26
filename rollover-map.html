@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upper Prospect Interactive Map</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Epilogue:wght@400;600;700&display=swap');
+    :root {
+      --spur: #8a9660;
+      --ridge: #a0aac4;
+      --point: #95846b;
+      --flamingo: #d56f6a;
+      --under: #e3e3e3;
+      --sold: #1c2e4d;
+      --inactive: #cfd6e2;
+      --bg: #f7f7f5;
+      --panel: #ffffff;
+      --ink: #0f1720;
+      --muted: #4b5563;
+      --outline: #e5e7eb;
+      --shadow: 0 16px 38px rgba(15, 23, 42, 0.14);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: 'Epilogue', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: flex;
+      justify-content: center;
+    }
+    .map-wrapper {
+      width: min(1200px, 96vw);
+      background: var(--panel);
+      border: 1px solid var(--outline);
+      border-radius: 14px;
+      padding: 18px 18px 22px;
+      box-shadow: var(--shadow);
+    }
+    .map-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      padding: 6px 10px;
+      border: 1px solid var(--outline);
+      border-radius: 10px;
+      background: #f9fafb;
+    }
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 5px;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+    }
+    .map-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1740 / 1056;
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #e5e7eb;
+    }
+    .map-inline svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .map-inline .error {
+      padding: 20px;
+      color: #b91c1c;
+      font-weight: 600;
+      background: #fef2f2;
+      border: 1px solid #fecdd3;
+      border-radius: 10px;
+    }
+    .map-tooltip {
+      position: absolute;
+      display: none;
+      min-width: 240px;
+      max-width: 320px;
+      padding: 14px 16px;
+      background: #ffffff;
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+      z-index: 5;
+      pointer-events: none;
+    }
+    .map-tooltip h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f1720;
+      background: #f3f4f6;
+      letter-spacing: 0.15px;
+    }
+    .pill.available { background: var(--ridge); color: #06101d; }
+    .pill.sold { background: var(--sold); color: #f7f8fb; }
+    .pill.inquiry { background: var(--under); color: #1f2937; }
+    .map-tooltip dl {
+      margin: 8px 0 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .map-tooltip dt { opacity: 0.7; }
+    .map-tooltip dd {
+      margin: 0;
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .pano-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      padding: 24px;
+    }
+    .pano-card {
+      position: relative;
+      background: #0b111a;
+      border-radius: 12px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+      max-width: 1200px;
+      width: min(1200px, 90vw);
+      max-height: 90vh;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .pano-card img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 90vh;
+      object-fit: contain;
+      background: #000;
+    }
+    .pano-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255,255,255,0.14);
+      color: #f9fafb;
+      border: none;
+      border-radius: 999px;
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    .pano-meta {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      background: rgba(0,0,0,0.45);
+      color: #f9fafb;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+    }
+    .helper {
+      margin: 10px 2px 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    @media (max-width: 720px) {
+      body { padding: 12px; }
+      .title { font-size: 18px; }
+      .map-tooltip { min-width: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="map-wrapper">
+    <div class="map-header">
+      <div class="title">Upper Prospect &mdash; Interactive Lot Map</div>
+      <div class="legend">
+        <span><span class="swatch" style="background: var(--spur)"></span>The Spur</span>
+        <span><span class="swatch" style="background: var(--ridge)"></span>The Ridge</span>
+        <span><span class="swatch" style="background: var(--point)"></span>The Point</span>
+        <span><span class="swatch" style="background: var(--flamingo)"></span>Flamingo Lane</span>
+        <span><span class="swatch" style="background: var(--under)"></span>Under Contract</span>
+        <span><span class="swatch" style="background: var(--sold)"></span>Sold</span>
+      </div>
+    </div>
+    <div class="map-frame" id="mapFrame">
+      <div id="mapInline" class="map-inline" aria-label="Upper Prospect lot map"></div>
+      <div class="map-tooltip" id="tooltip"></div>
+    </div>
+    <div class="helper">Hover or tap a coloured lot to see pricing and site details. Click a panorama icon to view the 360° image.</div>
+  </div>
+
+  <div class="pano-overlay" id="panoOverlay" role="dialog" aria-modal="true" aria-label="Panoramic view">
+    <div class="pano-card">
+      <button class="pano-close" id="panoClose" aria-label="Close panorama">&times;</button>
+      <img id="panoImage" alt="Panoramic view">
+      <div class="pano-meta" id="panoMeta"></div>
+    </div>
+  </div>
+
+  <script>
+    const SVG_URL = 'UpperPropsectMap_26.01.22.svg'; // change to your Squarespace CDN URL when embedding
+
+    const lotData = [
+      // Flamingo Lane - Estate (newly released)
+      { id: 'E-22', name: 'Flamingo 022', section: 'Flamingo Lane - Estate', status: 'available', price: 747500, acres: 0.80, sqft: 34848, minBuild: 2000 },
+      { id: 'E-23', name: 'Flamingo 023', section: 'Flamingo Lane - Estate', status: 'available', price: 727000, acres: 0.79, sqft: 34412, minBuild: 2000 },
+      { id: 'E-24', name: 'Flamingo 024', section: 'Flamingo Lane - Estate', status: 'available', price: 867000, acres: 0.77, sqft: 33541, minBuild: 2000 },
+      { id: 'E-29', name: 'Flamingo 029', section: 'Flamingo Lane - Estate', status: 'available', price: 897500, acres: 0.67, sqft: 29185, minBuild: 2000 },
+      { id: 'E-30', name: 'Flamingo 030', section: 'Flamingo Lane - Estate', status: 'available', price: 742000, acres: 1.03, sqft: 44867, minBuild: 2000 },
+      { id: 'E-31', name: 'Flamingo 031', section: 'Flamingo Lane - Estate', status: 'available', price: 647500, acres: 0.82, sqft: 35719, minBuild: 2000 },
+      // The Point - Estate
+      { id: 'E-42', name: 'The Point 042', section: 'The Point - Estate', status: 'available', price: 1995000, acres: 0.65, sqft: 28314, minBuild: 2000 },
+      { id: 'E-43', name: 'The Point 043', section: 'The Point - Estate', status: 'available', price: 2495000, acres: 0.87, sqft: 37897, minBuild: 2000 },
+      { id: 'E-44', name: 'The Point 044', section: 'The Point - Estate', status: 'sold', acres: 1.07, sqft: 46609, minBuild: 2000 },
+      { id: 'E-45', name: 'The Point 045', section: 'The Point - Estate', status: 'sold', acres: 1.34, sqft: 58370, minBuild: 2000 },
+      // The Spur - Chalet
+      { id: 'F-2', name: 'The Spur 02', section: 'The Spur - Chalet', status: 'sold', acres: 0.39, sqft: 16988, minBuild: 2000 },
+      { id: 'F-3', name: 'The Spur 03', section: 'The Spur - Chalet', status: 'sold', acres: 0.42, sqft: 18295, minBuild: 2000 },
+      { id: 'F-5', name: 'The Spur 05', section: 'The Spur - Chalet', status: 'sold', acres: 0.39, sqft: 16988, minBuild: 2000 },
+      { id: 'F-6', name: 'The Spur 06', section: 'The Spur - Chalet', status: 'sold', acres: 0.44, sqft: 19166, minBuild: 2000 },
+      { id: 'F-8', name: 'The Spur 08', section: 'The Spur - Chalet', status: 'sold', acres: 0.52, sqft: 22651, minBuild: 2000 },
+      { id: 'F-9', name: 'The Spur 09', section: 'The Spur - Chalet', status: 'sold', acres: 0.40, sqft: 17424, minBuild: 2000 },
+      { id: 'F-12', name: 'The Spur 12', section: 'The Spur - Chalet', status: 'sold', acres: 0.40, sqft: 17424, minBuild: 2000 },
+      // The Ridge - Chalet
+      { id: 'F-17', name: 'The Ridge 017', section: 'The Ridge - Chalet', status: 'sold', acres: 0.54, sqft: 23522, minBuild: 2000 },
+      { id: 'F-18', name: 'The Ridge 018', section: 'The Ridge - Chalet', status: 'sold', acres: 0.55, sqft: 23958, minBuild: 2000 },
+      { id: 'F-19', name: 'The Ridge 019', section: 'The Ridge - Chalet', status: 'sold', acres: 0.55, sqft: 23958, minBuild: 2000 },
+      { id: 'F-20', name: 'The Ridge 020', section: 'The Ridge - Chalet', status: 'sold', acres: 0.55, sqft: 23958, minBuild: 2000 },
+      { id: 'F-21', name: 'The Ridge 021', section: 'The Ridge - Chalet', status: 'sold', acres: 0.40, sqft: 17424, minBuild: 2000 },
+      { id: 'F-22', name: 'The Ridge 022', section: 'The Ridge - Chalet', status: 'sold', acres: 0.43, sqft: 18731, minBuild: 2000 },
+      { id: 'F-23', name: 'The Ridge 023', section: 'The Ridge - Chalet', status: 'sold', acres: 0.47, sqft: 20473, minBuild: 2000 },
+      // The Ridge - Estate
+      { id: 'E-32', name: 'The Ridge 032', section: 'The Ridge - Estate', status: 'available', price: 697500, acres: 0.75, sqft: 32670, minBuild: 2000 },
+      { id: 'E-34', name: 'The Ridge 034', section: 'The Ridge - Estate', status: 'available', price: 479000, acres: 0.33, sqft: 14375, minBuild: 2000 },
+      { id: 'E-35', name: 'The Ridge 035', section: 'The Ridge - Estate', status: 'sold', acres: 0.33, sqft: 14375, minBuild: 2000 },
+      { id: 'E-36', name: 'The Ridge 036', section: 'The Ridge - Estate', status: 'available', price: 515000, acres: 0.33, sqft: 14375, minBuild: 2000 },
+      { id: 'E-37', name: 'The Ridge 037', section: 'The Ridge - Estate', status: 'sold', acres: 0.33, sqft: 14375, minBuild: 2000 },
+      { id: 'E-38', name: 'The Ridge 038', section: 'The Ridge - Estate', status: 'sold', acres: 0.33, sqft: 14375, minBuild: 2000 },
+      { id: 'E-39', name: 'The Ridge 039', section: 'The Ridge - Estate', status: 'sold', acres: 0.35, sqft: 15246, minBuild: 2000 },
+      { id: 'E-40', name: 'The Ridge 040', section: 'The Ridge - Estate', status: 'available', price: 697500, acres: 0.65, sqft: 28314, minBuild: 2000 },
+      { id: 'E-41', name: 'The Ridge 041', section: 'The Ridge - Estate', status: 'available', price: 765000, acres: 0.61, sqft: 26572, minBuild: 2000 }
+    ];
+
+    const panoPins = [
+      { id: '360PANO1', file: '360PANO1.jpg', label: 'Panorama 1' },
+      { id: '360PANO2', file: '360PANO2.jpg', label: 'Panorama 2' },
+      { id: '360PANO3', file: '360PANO3.jpg', label: 'Panorama 3' },
+      { id: '360PANO4', file: '360PANO4.jpg', label: 'Panorama 4' },
+      { id: '360PANO5', file: '360PANO5.jpg', label: 'Panorama 5' },
+      { id: '360PANO6', file: '360PANO6.jpg', label: 'Panorama 6' }
+    ];
+
+    const lotMap = new Map(lotData.map(lot => [lot.id, lot]));
+    const panoMap = new Map(panoPins.map(p => [p.id.toUpperCase(), p]));
+    const tooltip = document.getElementById('tooltip');
+    const frame = document.getElementById('mapFrame');
+    const mapInline = document.getElementById('mapInline');
+    const priceFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    const panoOverlay = document.getElementById('panoOverlay');
+    const panoImage = document.getElementById('panoImage');
+    const panoMeta = document.getElementById('panoMeta');
+    const panoClose = document.getElementById('panoClose');
+
+    function statusLabel(status) {
+      if (status === 'available') return 'Available';
+      if (status === 'sold') return 'Sold';
+      if (status === 'inquiry') return 'Under contract';
+      return 'Unavailable';
+    }
+
+    function formatPrice(lot) {
+      if (typeof lot.price === 'number') return priceFmt.format(lot.price);
+      if (lot.status === 'sold') return 'Sold';
+      if (lot.status === 'inquiry') return 'Under contract';
+      return 'TBD';
+    }
+
+    function formatNumber(value, suffix) {
+      if (value === null || value === undefined || Number.isNaN(value)) return '--';
+      return `${value}${suffix}`;
+    }
+
+    function normalizePanoId(id = '') {
+      const match = id.toUpperCase().match(/360PANO\d+/);
+      return match ? match[0] : null;
+    }
+
+    function showPanorama(pano) {
+      panoImage.onload = null;
+      panoImage.onerror = null;
+      panoImage.src = pano.file;
+      panoImage.alt = pano.label;
+      panoMeta.textContent = pano.label;
+      panoOverlay.style.display = 'flex';
+      // Fallback: if image cannot be loaded (CORS), open in new tab
+      panoImage.onerror = () => {
+        window.open(pano.file, '_blank');
+        panoOverlay.style.display = 'none';
+      };
+    }
+
+    function hidePanorama() {
+      panoOverlay.style.display = 'none';
+      panoImage.src = '';
+    }
+
+    function extractLotId(elementId) {
+      const match = elementId.match(/[EF]-\d+(?:-\d+)?/);
+      return match ? match[0] : null;
+    }
+
+    function renderTooltip(lot) {
+      tooltip.innerHTML = `
+        <h3>${lot.name || `Lot ${lot.id}`} <span class="pill ${lot.status}">${statusLabel(lot.status)}</span></h3>
+        <div class="pill ${lot.status}">${formatPrice(lot)}</div>
+        <dl>
+          <dt>Section</dt><dd>${lot.section || '--'}</dd>
+          <dt>Lot</dt><dd>${lot.id}</dd>
+          <dt>Acres</dt><dd>${formatNumber(lot.acres, ' ac')}</dd>
+          <dt>Sq Ft</dt><dd>${formatNumber(lot.sqft, ' sq ft')}</dd>
+          <dt>Min. Build</dt><dd>${formatNumber(lot.minBuild, ' sq ft')}</dd>
+        </dl>
+      `;
+    }
+
+    function placeTooltip(evt) {
+      const rect = frame.getBoundingClientRect();
+      const baseX = evt.clientX - rect.left + 12;
+      const baseY = evt.clientY - rect.top + 12;
+
+      // Constrain tooltip within the frame bounds.
+      // We measure after content is set/displayed to get real dimensions.
+      const ttRect = tooltip.getBoundingClientRect();
+      const maxX = rect.width - ttRect.width - 12;
+      const maxY = rect.height - ttRect.height - 12;
+      const clampedX = Math.max(12, Math.min(baseX, Math.max(12, maxX)));
+      const clampedY = Math.max(12, Math.min(baseY, Math.max(12, maxY)));
+
+      tooltip.style.left = `${clampedX}px`;
+      tooltip.style.top = `${clampedY}px`;
+    }
+
+    function colorForLot(lot) {
+      const section = (lot.section || '').toLowerCase();
+      if (section.includes('flamingo')) return 'var(--flamingo)';
+      if (section.includes('spur')) return 'var(--spur)';
+      if (section.includes('point')) return 'var(--point)';
+      return 'var(--ridge)';
+    }
+
+    function attachStyles(svg) {
+      const styleNode = svg.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleNode.textContent = `
+        .lot-area { cursor: pointer; fill: var(--inactive) !important; stroke: #ffffff; stroke-width: 0.9; transition: fill 140ms ease, stroke-width 140ms ease, opacity 140ms ease; }
+        .lot-available { fill: var(--lot-color) !important; fill-opacity: 0.42; }
+        .lot-inquiry { fill: var(--under) !important; fill-opacity: 0.5; }
+        .lot-sold { fill: var(--sold) !important; fill-opacity: 0.56; }
+        .lot-inactive { fill: var(--inactive) !important; fill-opacity: 0.5; cursor: not-allowed; }
+        .lot-hover { stroke-width: 2.2 !important; fill-opacity: 0.56; }
+        .pano-pin { pointer-events: all; }
+        .pano-hit { pointer-events: all; }
+        .pano-hit:hover { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3)); transform: scale(1.04); transform-origin: center; }
+      `;
+      svg.appendChild(styleNode);
+    }
+
+    function wireLot(lot, svg) {
+      const targets = svg.querySelectorAll(`[id$="${lot.id}"]`);
+      if (!targets.length) return;
+      targets.forEach(el => {
+        el.classList.add('lot-area');
+        el.classList.add(`lot-${lot.status}`);
+        if (lot.status === 'available') {
+          el.style.setProperty('--lot-color', colorForLot(lot));
+        }
+        el.addEventListener('pointerenter', evt => {
+          svg.querySelectorAll('.lot-hover').forEach(n => n.classList.remove('lot-hover'));
+          targets.forEach(n => n.classList.add('lot-hover'));
+          renderTooltip(lot);
+          tooltip.style.display = 'block';
+          placeTooltip(evt);
+        });
+        el.addEventListener('pointermove', placeTooltip);
+        el.addEventListener('pointerleave', () => {
+          svg.querySelectorAll('.lot-hover').forEach(n => n.classList.remove('lot-hover'));
+          tooltip.style.display = 'none';
+        });
+        el.addEventListener('click', evt => {
+          renderTooltip(lot);
+          tooltip.style.display = 'block';
+          placeTooltip(evt);
+        });
+      });
+    }
+
+    function markInactive(svg) {
+      const seen = new Set(lotMap.keys());
+      svg.querySelectorAll('path[id], polygon[id]').forEach(el => {
+        const lotId = extractLotId(el.id || '');
+        if (!lotId) return;
+        if (seen.has(lotId)) return;
+        if (!el.classList.contains('lot-area')) {
+          el.classList.add('lot-area', 'lot-inactive');
+        }
+      });
+    }
+
+    function wirePanoramas(svg) {
+      const panoNodes = svg.querySelectorAll('[id*="360PANO"], [id*="_x33_60PANO"]');
+      panoNodes.forEach(node => {
+        const pid = normalizePanoId(node.id);
+        const pano = pid ? panoMap.get(pid) : null;
+        if (!pano) return;
+        node.classList.add('pano-pin');
+        node.style.pointerEvents = 'all';
+        node.setAttribute('pointer-events', 'all');
+        const trigger = () => showPanorama(pano);
+        node.addEventListener('click', trigger);
+        node.addEventListener('pointerenter', trigger);
+
+        const bbox = node.getBBox();
+        const hit = svg.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        hit.setAttribute('x', bbox.x);
+        hit.setAttribute('y', bbox.y);
+        hit.setAttribute('width', bbox.width || 32);
+        hit.setAttribute('height', bbox.height || 32);
+        hit.setAttribute('fill', 'rgba(255,255,255,0.001)');
+        hit.setAttribute('class', 'pano-hit');
+        hit.setAttribute('tabindex', '0');
+        hit.setAttribute('role', 'button');
+        hit.setAttribute('aria-label', `${pano.label} panorama`);
+        hit.style.cursor = 'pointer';
+
+        hit.addEventListener('click', trigger);
+        hit.addEventListener('pointerenter', trigger);
+        hit.addEventListener('keydown', evt => {
+          if (evt.key === 'Enter' || evt.key === ' ') {
+            evt.preventDefault();
+            trigger();
+          }
+        });
+
+        // place hitbox above the node
+        node.parentNode.insertBefore(hit, node.nextSibling);
+      });
+    }
+
+    panoOverlay.addEventListener('click', evt => {
+      if (evt.target === panoOverlay) hidePanorama();
+    });
+    panoClose.addEventListener('click', hidePanorama);
+    window.addEventListener('keydown', evt => {
+      if (evt.key === 'Escape' && panoOverlay.style.display === 'flex') hidePanorama();
+    });
+
+
+    function styleAndWire(svg) {
+      const rootStyles = getComputedStyle(document.documentElement);
+      ['spur','ridge','point','flamingo','under','sold','inactive'].forEach(key => {
+        svg.style.setProperty(`--${key}`, rootStyles.getPropertyValue(`--${key}`));
+      });
+      attachStyles(svg);
+      lotData.forEach(lot => wireLot(lot, svg));
+      markInactive(svg);
+      wirePanoramas(svg);
+    }
+
+    async function loadSvg() {
+      try {
+        const res = await fetch(SVG_URL, { mode: 'cors' });
+        if (!res.ok) throw new Error('fetch failed');
+        const markup = await res.text();
+        mapInline.innerHTML = markup;
+        const svg = mapInline.querySelector('svg');
+        if (!svg) throw new Error('no svg found');
+        styleAndWire(svg);
+      } catch (err) {
+        // Fallback: try <object> so Chrome file:// still works
+        const obj = document.createElement('object');
+        obj.type = 'image/svg+xml';
+        obj.data = SVG_URL;
+        obj.id = 'mapObjFallback';
+        obj.style.width = '100%';
+        obj.style.height = '100%';
+        obj.addEventListener('load', () => {
+          const svg = obj.contentDocument && obj.contentDocument.querySelector('svg');
+          if (svg) {
+            styleAndWire(svg);
+          } else {
+            mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \`node server.js\`).</div>`;
+          }
+        });
+        obj.addEventListener('error', () => {
+          mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \`node server.js\`).</div>`;
+        });
+        mapInline.innerHTML = '';
+        mapInline.appendChild(obj);
+      }
+    }
+
+    loadSvg();
+  </script>
+</body>
+</html>
