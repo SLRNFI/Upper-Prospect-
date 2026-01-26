@@ -288,7 +288,7 @@
     // Use absolute paths so GitHub Pages/Squarespace loads assets reliably
     const isLocal = ['localhost', '127.0.0.1', ''].includes(location.hostname);
     const BASE = isLocal ? './' : 'https://slrnfi.github.io/Upper-Prospect-/';
-    const SVG_URL = `${BASE}UpperPropsectMap_26.01.22.svg`; // change to your Squarespace CDN URL when embedding
+    const SVG_URL = `${BASE}UpperProspectMap_26.01.22.svg`; // corrected filename typo
 
     const lotData = [
       // Flamingo Lane - Estate (newly released)
@@ -514,7 +514,8 @@
     }
 
     function wirePanoramas(svg) {
-      const panoNodes = svg.querySelectorAll('[id*="360PANO"], [id*="_x33_60PANO"]');
+      // broaden selector to catch PANO IDs without 360 prefix and escaped Illustrator ids
+      const panoNodes = svg.querySelectorAll('[id*="360PANO"], [id*="_x33_60PANO"], [id*="PANO"]');
       panoNodes.forEach(node => {
         const pid = normalizePanoId(node.id);
         const pano = pid ? panoMap.get(pid) : null;
@@ -599,13 +600,13 @@
     panoOverlay.addEventListener('click', evt => {
       if (evt.target === panoOverlay) hidePanorama();
     });
-    panoClose.addEventListener('click', hidePanorama);
+panoClose.addEventListener('click', hidePanorama);
     window.addEventListener('keydown', evt => {
       if (evt.key === 'Escape' && panoOverlay.style.display === 'flex') hidePanorama();
     });
 
     // Simple drag-to-pan for wide panoramas
-    const panoState = { isDown: false, startX: 0, startLeft: 0, offsetX: 0 };
+    const panoState = { isDown: false, startX: 0, startLeft: 0, offsetX: 0};
     function clampPan() {
       const vw = panoViewport.clientWidth;
       const iw = panoImage.naturalWidth * (panoImage.clientHeight / panoImage.naturalHeight || 1);
@@ -671,11 +672,11 @@
           if (svg) {
             styleAndWire(svg);
           } else {
-            mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \`node server.js\`).</div>`;
+            mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \\`node server.js\\`).</div>`;
           }
         });
         obj.addEventListener('error', () => {
-          mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \`node server.js\`).</div>`;
+          mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \\`node server.js\\`).</div>`;
         });
         mapInline.innerHTML = '';
         mapInline.appendChild(obj);
