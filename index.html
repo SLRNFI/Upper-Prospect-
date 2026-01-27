@@ -6,6 +6,7 @@
   <title>Upper Prospect Interactive Map</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Epilogue:wght@400;600;700&display=swap');
+    @import url('https://unpkg.com/pannellum@2.5.6/build/pannellum.css');
     :root {
       --spur: #8a9660;
       --ridge: #a0aac4;
@@ -277,13 +278,12 @@
   <div class="pano-overlay" id="panoOverlay" role="dialog" aria-modal="true" aria-label="Panoramic view">
     <div class="pano-card">
       <button class="pano-close" id="panoClose" aria-label="Close panorama">&times;</button>
-      <div class="pano-viewport">
-        <img id="panoImage" alt="Panoramic view">
-      </div>
+      <div class="pano-viewport" id="panoViewport"></div>
       <div class="pano-meta" id="panoMeta"></div>
     </div>
   </div>
 
+  <script src="https://unpkg.com/pannellum@2.5.6/build/pannellum.js"></script>
   <script>
     // Use absolute paths so GitHub Pages/Squarespace loads assets reliably
     const isLocal = ['localhost', '127.0.0.1', ''].includes(location.hostname);
@@ -352,10 +352,9 @@
     const mapInline = document.getElementById('mapInline');
     const priceFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
     const panoOverlay = document.getElementById('panoOverlay');
-    const panoImage = document.getElementById('panoImage');
     const panoMeta = document.getElementById('panoMeta');
     const panoClose = document.getElementById('panoClose');
-    const panoViewport = panoImage.parentElement;
+    const panoViewport = document.getElementById('panoViewport');
 
     function statusLabel(status) {
       if (status === 'available') return 'Available';
@@ -385,38 +384,38 @@
       return panoMap.has(core) ? core : `360${core}`;
     }
 
-    let panoLoadToken = 0;
+    let panoViewer = null;
     function showPanorama(pano) {
-      const token = ++panoLoadToken;
-      panoImage.onload = null;
-      panoImage.onerror = null;
-      panoImage.style.left = '0px';
-      panoImage.style.top = '0px';
-      panoImage.alt = pano.label;
-      panoImage.style.height = '100%';
-      panoMeta.textContent = pano.label;
       panoOverlay.style.display = 'flex';
-      panoImage.onload = () => {
-        if (token !== panoLoadToken) return;
-        panoState.offsetX = 0;
-        panoState.isDown = false;
-        panoImage.style.left = '0px';
-        panoImage.style.cursor = 'grab';
-      };
-      panoImage.onerror = () => {
-        if (token !== panoLoadToken) return; // stale load aborted
+      panoMeta.textContent = pano.label;
+      panoViewport.innerHTML = '<div id="panoContainer" style="width:100%;height:100%;"></div>';
+      try {
+        if (panoViewer && typeof panoViewer.destroy === 'function') {
+          panoViewer.destroy();
+        }
+        panoViewer = pannellum.viewer('panoContainer', {
+          type: 'equirectangular',
+          panorama: pano.file,
+          autoLoad: true,
+          showFullscreenCtrl: true,
+          compass: false,
+          hfov: 110,
+          minHfov: 70,
+          maxHfov: 120
+        });
+      } catch (err) {
         panoOverlay.style.display = 'none';
         alert('Could not load panorama. Please try again or open image directly: ' + pano.file);
-      };
-      panoImage.src = pano.file;
+      }
     }
 
     function hidePanorama() {
-      panoLoadToken++; // invalidate any in-flight loads
-      panoImage.onerror = null;
-      panoImage.onload = null;
+      if (panoViewer && typeof panoViewer.destroy === 'function') {
+        panoViewer.destroy();
+        panoViewer = null;
+      }
       panoOverlay.style.display = 'none';
-      panoImage.removeAttribute('src');
+      panoViewport.innerHTML = '';
     }
 
     function extractLotId(elementId) {
@@ -612,38 +611,7 @@ panoClose.addEventListener('click', hidePanorama);
       if (evt.key === 'Escape' && panoOverlay.style.display === 'flex') hidePanorama();
     });
 
-    // Simple drag-to-pan for wide panoramas
-    const panoState = { isDown: false, startX: 0, startLeft: 0, offsetX: 0};
-    function clampPan() {
-      const vw = panoViewport.clientWidth;
-      const iw = panoImage.naturalWidth * (panoImage.clientHeight / panoImage.naturalHeight || 1);
-      const maxLeft = 0;
-      const minLeft = Math.min(0, vw - iw);
-      const clamped = Math.max(minLeft, Math.min(maxLeft, panoState.offsetX));
-      panoImage.style.left = `${clamped}px`;
-    }
-    panoImage.addEventListener('pointerdown', e => {
-      panoState.isDown = true;
-      panoState.startX = e.clientX;
-      panoState.startLeft = parseFloat(panoImage.style.left) || 0;
-      panoImage.style.cursor = 'grabbing';
-      panoImage.setPointerCapture(e.pointerId);
-    });
-    panoImage.addEventListener('pointermove', e => {
-      if (!panoState.isDown) return;
-      const delta = e.clientX - panoState.startX;
-      panoState.offsetX = panoState.startLeft + delta;
-      clampPan();
-    });
-    panoImage.addEventListener('pointerup', e => {
-      panoState.isDown = false;
-      panoImage.style.cursor = 'grab';
-      panoImage.releasePointerCapture(e.pointerId);
-    });
-    panoImage.addEventListener('pointerleave', () => {
-      panoState.isDown = false;
-      panoImage.style.cursor = 'grab';
-    });
+    // pannellum handles drag/zoom internally; no custom drag needed
 
 
     function styleAndWire(svg) {
@@ -657,37 +625,26 @@ panoClose.addEventListener('click', hidePanorama);
       wirePanoramas(svg);
     }
 
-    async function loadSvg() {
-      try {
-        const res = await fetch(SVG_URL, { mode: 'cors' });
-        if (!res.ok) throw new Error('fetch failed');
-        const markup = await res.text();
-        mapInline.innerHTML = markup;
-        const svg = mapInline.querySelector('svg');
-        if (!svg) throw new Error('no svg found');
-        styleAndWire(svg);
-      } catch (err) {
-        // Fallback: try <object> so Chrome file:// still works
-        const obj = document.createElement('object');
-        obj.type = 'image/svg+xml';
-        obj.data = SVG_URL;
-        obj.id = 'mapObjFallback';
-        obj.style.width = '100%';
-        obj.style.height = '100%';
-        obj.addEventListener('load', () => {
-          const svg = obj.contentDocument && obj.contentDocument.querySelector('svg');
-          if (svg) {
-            styleAndWire(svg);
-          } else {
-            mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \\`node server.js\\`).</div>`;
-          }
-        });
-        obj.addEventListener('error', () => {
+    function loadSvg() {
+      const obj = document.createElement('object');
+      obj.type = 'image/svg+xml';
+      obj.data = SVG_URL;
+      obj.id = 'mapObjFallback';
+      obj.style.width = '100%';
+      obj.style.height = '100%';
+      obj.addEventListener('load', () => {
+        const svg = obj.contentDocument && obj.contentDocument.querySelector('svg');
+        if (svg) {
+          styleAndWire(svg);
+        } else {
           mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \\`node server.js\\`).</div>`;
-        });
-        mapInline.innerHTML = '';
-        mapInline.appendChild(obj);
-      }
+        }
+      });
+      obj.addEventListener('error', () => {
+        mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \\`node server.js\\`).</div>`;
+      });
+      mapInline.innerHTML = '';
+      mapInline.appendChild(obj);
     }
 
     loadSvg();
