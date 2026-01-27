@@ -385,7 +385,9 @@
       return panoMap.has(core) ? core : `360${core}`;
     }
 
+    let panoLoadToken = 0;
     function showPanorama(pano) {
+      const token = ++panoLoadToken;
       panoImage.onload = null;
       panoImage.onerror = null;
       panoImage.style.left = '0px';
@@ -395,12 +397,14 @@
       panoMeta.textContent = pano.label;
       panoOverlay.style.display = 'flex';
       panoImage.onload = () => {
+        if (token !== panoLoadToken) return;
         panoState.offsetX = 0;
         panoState.isDown = false;
         panoImage.style.left = '0px';
         panoImage.style.cursor = 'grab';
       };
       panoImage.onerror = () => {
+        if (token !== panoLoadToken) return; // stale load aborted
         panoOverlay.style.display = 'none';
         alert('Could not load panorama. Please try again or open image directly: ' + pano.file);
       };
@@ -408,8 +412,11 @@
     }
 
     function hidePanorama() {
+      panoLoadToken++; // invalidate any in-flight loads
+      panoImage.onerror = null;
+      panoImage.onload = null;
       panoOverlay.style.display = 'none';
-      panoImage.src = '';
+      panoImage.removeAttribute('src');
     }
 
     function extractLotId(elementId) {
