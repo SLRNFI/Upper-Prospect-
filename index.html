@@ -4,9 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Upper Prospect Interactive Map</title>
+  <!-- Pannellum 360 Viewer -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Epilogue:wght@400;600;700&display=swap');
-    @import url('https://unpkg.com/pannellum@2.5.6/build/pannellum.css');
     :root {
       --spur: #8a9660;
       --ridge: #a0aac4;
@@ -202,6 +204,11 @@
       height: min(70vh, 720px);
       overflow: hidden;
       background: #000;
+      border-radius: 8px;
+    }
+    #panorama {
+      width: 100%;
+      height: 100%;
     }
     .pano-card img {
       position: absolute;
@@ -214,6 +221,7 @@
       cursor: grab;
       user-select: none;
       -webkit-user-drag: none;
+      display: none; /* Hidden by default, using pannellum instead */
     }
     .pano-close {
       position: absolute;
@@ -278,17 +286,18 @@
   <div class="pano-overlay" id="panoOverlay" role="dialog" aria-modal="true" aria-label="Panoramic view">
     <div class="pano-card">
       <button class="pano-close" id="panoClose" aria-label="Close panorama">&times;</button>
-      <div class="pano-viewport" id="panoViewport"></div>
+      <div class="pano-viewport">
+        <div id="panorama"></div>
+      </div>
       <div class="pano-meta" id="panoMeta"></div>
     </div>
   </div>
 
-  <script src="https://unpkg.com/pannellum@2.5.6/build/pannellum.js"></script>
   <script>
     // Use absolute paths so GitHub Pages/Squarespace loads assets reliably
     const isLocal = ['localhost', '127.0.0.1', ''].includes(location.hostname);
     const BASE = isLocal ? './' : 'https://slrnfi.github.io/Upper-Prospect-/';
-    const SVG_URL = `${BASE}UpperProspectMap_26.01.22.svg`; // corrected filename typo
+    const SVG_URL = `${BASE}UpperPropsectMap_26.01.22.svg`; // corrected to match actual filename
 
     const lotData = [
       // Flamingo Lane - Estate (newly released)
@@ -354,7 +363,8 @@
     const panoOverlay = document.getElementById('panoOverlay');
     const panoMeta = document.getElementById('panoMeta');
     const panoClose = document.getElementById('panoClose');
-    const panoViewport = document.getElementById('panoViewport');
+    
+    let viewer = null; // Pannellum viewer instance
 
     function statusLabel(status) {
       if (status === 'available') return 'Available';
@@ -384,38 +394,44 @@
       return panoMap.has(core) ? core : `360${core}`;
     }
 
-    let panoViewer = null;
     function showPanorama(pano) {
-      panoOverlay.style.display = 'flex';
       panoMeta.textContent = pano.label;
-      panoViewport.innerHTML = '<div id="panoContainer" style="width:100%;height:100%;"></div>';
-      try {
-        if (panoViewer && typeof panoViewer.destroy === 'function') {
-          panoViewer.destroy();
-        }
-        panoViewer = pannellum.viewer('panoContainer', {
-          type: 'equirectangular',
-          panorama: pano.file,
-          autoLoad: true,
-          showFullscreenCtrl: true,
-          compass: false,
-          hfov: 110,
-          minHfov: 70,
-          maxHfov: 120
-        });
-      } catch (err) {
-        panoOverlay.style.display = 'none';
-        alert('Could not load panorama. Please try again or open image directly: ' + pano.file);
+      panoOverlay.style.display = 'flex';
+      
+      // Destroy existing viewer if present
+      if (viewer) {
+        viewer.destroy();
+        viewer = null;
       }
+      
+      // Initialize Pannellum 360 viewer
+      viewer = pannellum.viewer('panorama', {
+        type: 'equirectangular',
+        panorama: pano.file,
+        autoLoad: true,
+        showControls: true,
+        mouseZoom: true,
+        autoRotate: -2,
+        compass: false,
+        showFullscreenCtrl: true,
+        showZoomCtrl: true,
+        keyboardZoom: true,
+        draggable: true,
+        friction: 0.15,
+        hfov: 100,
+        minHfov: 50,
+        maxHfov: 120,
+        pitch: 0,
+        yaw: 0
+      });
     }
 
     function hidePanorama() {
-      if (panoViewer && typeof panoViewer.destroy === 'function') {
-        panoViewer.destroy();
-        panoViewer = null;
-      }
       panoOverlay.style.display = 'none';
-      panoViewport.innerHTML = '';
+      if (viewer) {
+        viewer.destroy();
+        viewer = null;
+      }
     }
 
     function extractLotId(elementId) {
@@ -534,8 +550,6 @@
         node.setAttribute('title', `${pano.label}`);
         const trigger = () => showPanorama(pano);
         node.addEventListener('click', trigger);
-        node.addEventListener('pointerup', trigger);
-        node.addEventListener('pointerenter', trigger);
         node.addEventListener('keydown', evt => {
           if (evt.key === 'Enter' || evt.key === ' ') {
             evt.preventDefault();
@@ -557,8 +571,6 @@
         hit.style.cursor = 'pointer';
 
         hit.addEventListener('click', trigger);
-        hit.addEventListener('pointerup', trigger);
-        hit.addEventListener('pointerenter', trigger);
         hit.addEventListener('keydown', evt => {
           if (evt.key === 'Enter' || evt.key === ' ') {
             evt.preventDefault();
@@ -606,12 +618,10 @@
     panoOverlay.addEventListener('click', evt => {
       if (evt.target === panoOverlay) hidePanorama();
     });
-panoClose.addEventListener('click', hidePanorama);
+    panoClose.addEventListener('click', hidePanorama);
     window.addEventListener('keydown', evt => {
       if (evt.key === 'Escape' && panoOverlay.style.display === 'flex') hidePanorama();
     });
-
-    // pannellum handles drag/zoom internally; no custom drag needed
 
 
     function styleAndWire(svg) {
@@ -625,26 +635,44 @@ panoClose.addEventListener('click', hidePanorama);
       wirePanoramas(svg);
     }
 
-    function loadSvg() {
-      const obj = document.createElement('object');
-      obj.type = 'image/svg+xml';
-      obj.data = SVG_URL;
-      obj.id = 'mapObjFallback';
-      obj.style.width = '100%';
-      obj.style.height = '100%';
-      obj.addEventListener('load', () => {
-        const svg = obj.contentDocument && obj.contentDocument.querySelector('svg');
-        if (svg) {
-          styleAndWire(svg);
-        } else {
-          mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \\`node server.js\\`).</div>`;
-        }
-      });
-      obj.addEventListener('error', () => {
-        mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run \\`node server.js\\`).</div>`;
-      });
-      mapInline.innerHTML = '';
-      mapInline.appendChild(obj);
+    async function loadSvg() {
+      console.log('Loading SVG from:', SVG_URL);
+      try {
+        const res = await fetch(SVG_URL, { mode: 'cors' });
+        console.log('Fetch response:', res);
+        if (!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText}`);
+        const markup = await res.text();
+        console.log('SVG markup loaded, length:', markup.length);
+        mapInline.innerHTML = markup;
+        const svg = mapInline.querySelector('svg');
+        if (!svg) throw new Error('no svg found');
+        console.log('SVG found, styling...');
+        styleAndWire(svg);
+      } catch (err) {
+        console.error('SVG loading error:', err);
+        // Fallback: try <object> so Chrome file:// still works
+        const obj = document.createElement('object');
+        obj.type = 'image/svg+xml';
+        obj.data = SVG_URL;
+        obj.id = 'mapObjFallback';
+        obj.style.width = '100%';
+        obj.style.height = '100%';
+        obj.addEventListener('load', () => {
+          console.log('Object fallback loaded');
+          const svg = obj.contentDocument && obj.contentDocument.querySelector('svg');
+          if (svg) {
+            styleAndWire(svg);
+          } else {
+            mapInline.innerHTML = `<div class="error">Could not load SVG. Please open this file via http://localhost (e.g., run a local server).</div>`;
+          }
+        });
+        obj.addEventListener('error', (e) => {
+          console.error('Object fallback failed:', e);
+          mapInline.innerHTML = `<div class="error">Could not load SVG: ${SVG_URL}. Please check that the file exists and you're running via http://localhost.</div>`;
+        });
+        mapInline.innerHTML = '';
+        mapInline.appendChild(obj);
+      }
     }
 
     loadSvg();
