@@ -308,6 +308,9 @@
     const isLocal = ['localhost', '127.0.0.1', ''].includes(location.hostname);
     const BASE = isLocal ? './' : 'https://slrnfi.github.io/Upper-Prospect-/';
     const SVG_URL = `${BASE}UpperProspectMap_26.01.22.svg`;
+    // Font file uploaded (OTF with a space in the name)
+    // If you also generate a woff2, put it next to the SVG and change this if needed.
+    const MAP_FONT_URL = `${BASE}Moon%20Flower.otf`;
 
     const lotData = [
       // Flamingo Lane - Estate (newly released)
@@ -417,6 +420,17 @@
       if (!match) return null;
       const core = match[0]; // PANO1
       return panoMap.has(core) ? core : `360${core}`;
+    }
+
+    // Some Illustrator text layers use lowercase "e-21" style ids; normalize them to uppercase
+    function fixLotLabelCasing(svg) {
+      const lotIdPattern = /^[ef]-\d+(?:-\d+)?$/i;
+      svg.querySelectorAll('text tspan').forEach(span => {
+        const value = (span.textContent || '').trim();
+        if (lotIdPattern.test(value)) {
+          span.textContent = value.toUpperCase();
+        }
+      });
     }
 
     function showPanorama(pano) {
@@ -529,6 +543,23 @@
         .pano-hit:hover { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3)); transform: scale(1.04); transform-origin: center; }
       `;
       svg.appendChild(styleNode);
+    }
+
+    function injectFontFace(svg) {
+      if (!MAP_FONT_URL) return;
+      const styleNode = svg.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleNode.textContent = `
+        @font-face {
+          font-family: 'Moon Flower';
+          src: url('${MAP_FONT_URL}') format('opentype');
+          font-weight: normal;
+          font-style: normal;
+        }
+        text, tspan {
+          font-family: 'Moon Flower', 'MoonFlower', sans-serif;
+        }
+      `;
+      svg.insertBefore(styleNode, svg.firstChild);
     }
 
     function wireLot(lot, svg) {
@@ -676,7 +707,9 @@
       ['spur','ridge','point','flamingo','under','sold','inactive'].forEach(key => {
         svg.style.setProperty(`--${key}`, rootStyles.getPropertyValue(`--${key}`));
       });
+      injectFontFace(svg);
       attachStyles(svg);
+      fixLotLabelCasing(svg);
       lotData.forEach(lot => wireLot(lot, svg));
       markInactive(svg);
       wirePanoramas(svg);
