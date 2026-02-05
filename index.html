@@ -281,7 +281,7 @@
         <span><span class="swatch" style="background: var(--ridge)"></span>The Ridge</span>
         <span><span class="swatch" style="background: var(--point)"></span>The Point</span>
         <span><span class="swatch" style="background: var(--flamingo)"></span>Flamingo Lane</span>
-        <span><span class="swatch" style="background: var(--under)"></span>Unavailable</span>
+        <span><span class="swatch" style="background: var(--inactive)"></span>Unavailable</span>
         <span><span class="swatch" style="background: var(--sold)"></span>Sold</span>
       </div>
     </div>
@@ -525,19 +525,45 @@
       const styleNode = svg.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'style');
       styleNode.textContent = `
         .lot-area { cursor: pointer; fill: var(--inactive) !important; stroke: #ffffff; stroke-width: 0.9; transition: fill 140ms ease, stroke-width 140ms ease, opacity 140ms ease; }
+        .lot-boundary { pointer-events: all; }
+        .lot-envelope { pointer-events: all; stroke: none !important; }
+        .lot-bg { pointer-events: none; stroke: none !important; }
         .lot-available { fill: var(--lot-color) !important; fill-opacity: 0.42; }
         .lot-inquiry { fill: var(--under) !important; fill-opacity: 0.5; }
         .lot-sold { fill: var(--sold) !important; fill-opacity: 0.56; }
-        .lot-unavailable-spur,
-        .lot-unavailable-flamingo,
-        .lot-unavailable-ridge,
-        .lot-sold-inactive,
-        .lot-inactive {
-          fill: color-mix(in srgb, var(--inactive) 60%, var(--lot-color, var(--inactive)) 40%) !important;
-          fill-opacity: 0.6;
+        .lot-boundary.lot-unavailable-spur,
+        .lot-boundary.lot-unavailable-flamingo,
+        .lot-boundary.lot-unavailable-ridge,
+        .lot-boundary.lot-sold-inactive,
+        .lot-boundary.lot-inquiry,
+        .lot-boundary.lot-inactive {
+          /* boundary sits above envelopes; keep it transparent for unavailable so the interior build envelope shows */
+          fill: var(--inactive) !important;
+          fill-opacity: 0 !important;
           cursor: not-allowed;
         }
-        .lot-hover { stroke-width: 2.2 !important; fill-opacity: 0.56; }
+        .lot-envelope.lot-unavailable-spur,
+        .lot-envelope.lot-unavailable-flamingo,
+        .lot-envelope.lot-unavailable-ridge,
+        .lot-envelope.lot-sold-inactive,
+        .lot-envelope.lot-inquiry,
+        .lot-envelope.lot-inactive {
+          /* faded section colour for the build envelope */
+          fill: color-mix(in srgb, var(--lot-color, var(--inactive)) 55%, white 45%) !important;
+          fill-opacity: 0.78;
+          cursor: not-allowed;
+        }
+        .lot-bg.lot-unavailable-spur,
+        .lot-bg.lot-unavailable-flamingo,
+        .lot-bg.lot-unavailable-ridge,
+        .lot-bg.lot-sold-inactive,
+        .lot-bg.lot-inquiry,
+        .lot-bg.lot-inactive {
+          /* consistent unavailable background behind the envelope */
+          fill: var(--inactive) !important;
+          fill-opacity: 0.95;
+        }
+        .lot-boundary.lot-hover { stroke-width: 2.2 !important; fill-opacity: 0.56; }
         .pano-pin { pointer-events: all; }
         .pano-hit { pointer-events: all; }
         .pano-hit:hover { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3)); transform: scale(1.04); transform-origin: center; }
@@ -563,17 +589,22 @@
     }
 
     function wireLot(lot, svg) {
+      const buildArea = svg.querySelector('#Build_area');
       const compactId = (lot.id || '').replace(/-/g, '');
       const underscoredId = (lot.id || '').replace(/-/g, '_');
       const candidates = svg.querySelectorAll(
         `[id$="${lot.id}"], [id*="${lot.id}"], [id*="${compactId}"], [id*="${underscoredId}"], [data-name$="${lot.id}"], [data-name*="${lot.id}"], [data-name*="${compactId}"], [data-name*="${underscoredId}"]`
       );
-      const targets = Array.from(candidates).filter(el => extractLotId(el.id || el.dataset.name || '') === lot.id);
+      const targets = Array.from(candidates).filter(el =>
+        extractLotId(el.id || el.dataset.name || '') === lot.id &&
+        (el.tagName === 'path' || el.tagName === 'polygon')
+      );
       if (!targets.length) return;
       const baseColor = colorForLot(lot);
       targets.forEach(el => {
         el.classList.add('lot-area');
         el.classList.add(`lot-${lot.status}`);
+        el.classList.add(buildArea && buildArea.contains(el) ? 'lot-envelope' : 'lot-boundary');
         el.style.setProperty('--lot-color', baseColor);
         el.addEventListener('pointerenter', evt => {
           svg.querySelectorAll('.lot-hover').forEach(n => n.classList.remove('lot-hover'));
@@ -597,6 +628,7 @@
 
     function markInactive(svg) {
       const seen = new Set(lotMap.keys());
+      const buildArea = svg.querySelector('#Build_area');
       svg.querySelectorAll('path[id], polygon[id]').forEach(el => {
         const lotId = extractLotId(el.id || '');
         if (!lotId) return;
@@ -609,7 +641,50 @@
         else if (idLower.includes('point')) base = 'var(--point)';
         else if (idLower.includes('ridge')) base = 'var(--ridge)';
         el.classList.add('lot-area', 'lot-inactive');
+        el.classList.add(buildArea && buildArea.contains(el) ? 'lot-envelope' : 'lot-boundary');
         el.style.setProperty('--lot-color', base);
+      });
+    }
+
+    function syncUnavailableBackgrounds(svg) {
+      const buildArea = svg.querySelector('#Build_area');
+      if (!buildArea) return;
+
+      const svgNs = 'http://www.w3.org/2000/svg';
+      const groupId = 'Unavailable_Lot_Backgrounds';
+      let bgGroup = svg.querySelector(`#${groupId}`);
+      if (!bgGroup) {
+        bgGroup = svg.ownerDocument.createElementNS(svgNs, 'g');
+        bgGroup.setAttribute('id', groupId);
+        bgGroup.setAttribute('aria-hidden', 'true');
+      } else {
+        while (bgGroup.firstChild) bgGroup.removeChild(bgGroup.firstChild);
+      }
+
+      // Ensure the backgrounds render behind the build envelopes but above the base map image
+      if (bgGroup.parentNode !== buildArea.parentNode || bgGroup.nextSibling !== buildArea) {
+        buildArea.parentNode.insertBefore(bgGroup, buildArea);
+      }
+
+      const unavailableBoundarySelector = [
+        '.lot-boundary.lot-inactive',
+        '.lot-boundary.lot-inquiry',
+        '.lot-boundary.lot-unavailable-spur',
+        '.lot-boundary.lot-unavailable-flamingo',
+        '.lot-boundary.lot-unavailable-ridge',
+        '.lot-boundary.lot-sold-inactive'
+      ].join(',');
+
+      svg.querySelectorAll(unavailableBoundarySelector).forEach(boundary => {
+        const clone = boundary.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.classList.add('lot-bg');
+        clone.classList.remove('lot-boundary', 'lot-envelope', 'lot-hover');
+        clone.style.pointerEvents = 'none';
+        clone.style.cursor = 'default';
+        clone.style.stroke = 'none';
+        clone.style.strokeWidth = '0';
+        bgGroup.appendChild(clone);
       });
     }
 
@@ -712,6 +787,7 @@
       fixLotLabelCasing(svg);
       lotData.forEach(lot => wireLot(lot, svg));
       markInactive(svg);
+      syncUnavailableBackgrounds(svg);
       wirePanoramas(svg);
     }
 
