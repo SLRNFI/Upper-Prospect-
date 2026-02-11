@@ -521,6 +521,15 @@
       return 'var(--ridge)'; // default ridge tint
     }
 
+    function inferBaseColorFromId(id = '') {
+      const idLower = id.toLowerCase();
+      if (idLower.includes('spur')) return 'var(--spur)';
+      if (idLower.includes('flamingo')) return 'var(--flamingo)';
+      if (idLower.includes('point')) return 'var(--point)';
+      if (idLower.includes('ridge')) return 'var(--ridge)';
+      return null;
+    }
+
     function attachStyles(svg) {
       const styleNode = svg.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'style');
       styleNode.textContent = `
@@ -629,17 +638,25 @@
     function markInactive(svg) {
       const seen = new Set(lotMap.keys());
       const buildArea = svg.querySelector('#Build_area');
-      svg.querySelectorAll('path[id], polygon[id]').forEach(el => {
+      const lotBaseColor = new Map();
+      const nodes = Array.from(svg.querySelectorAll('path[id], polygon[id]'));
+      const idNodes = Array.from(svg.querySelectorAll('[id]'));
+
+      // Some lots are split across multiple SVG ids (e.g., "SPUR_E-48" + "E-48").
+      // Capture one section color per lot id from any SVG id so all segments render consistently.
+      idNodes.forEach(el => {
+        const lotId = extractLotId(el.id || '');
+        if (!lotId || seen.has(lotId) || lotBaseColor.has(lotId)) return;
+        const inferred = inferBaseColorFromId(el.id || '');
+        if (inferred) lotBaseColor.set(lotId, inferred);
+      });
+
+      nodes.forEach(el => {
         const lotId = extractLotId(el.id || '');
         if (!lotId) return;
         if (seen.has(lotId)) return;
         if (el.classList.contains('lot-area')) return;
-        const idLower = (el.id || '').toLowerCase();
-        let base = 'var(--ridge)';
-        if (idLower.includes('spur')) base = 'var(--spur)';
-        else if (idLower.includes('flamingo')) base = 'var(--flamingo)';
-        else if (idLower.includes('point')) base = 'var(--point)';
-        else if (idLower.includes('ridge')) base = 'var(--ridge)';
+        const base = lotBaseColor.get(lotId) || inferBaseColorFromId(el.id || '') || 'var(--ridge)';
         el.classList.add('lot-area', 'lot-inactive');
         el.classList.add(buildArea && buildArea.contains(el) ? 'lot-envelope' : 'lot-boundary');
         el.style.setProperty('--lot-color', base);
