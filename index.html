@@ -433,6 +433,18 @@
       });
     }
 
+    // Sold lots get white labels, driven by lotData so the SVG artwork doesn't need editing per sale
+    function styleSoldLabels(svg) {
+      const lotIdPattern = /^[ef]-\d+(?:-\d+)?$/i;
+      svg.querySelectorAll('text').forEach(text => {
+        const idSpan = Array.from(text.querySelectorAll('tspan'))
+          .find(span => lotIdPattern.test((span.textContent || '').trim()));
+        if (!idSpan) return;
+        const lot = lotMap.get(idSpan.textContent.trim().toUpperCase());
+        text.classList.toggle('lot-label-sold', !!lot && lot.status === 'sold');
+      });
+    }
+
     function showPanorama(pano) {
       panoMeta.textContent = pano.label;
       panoOverlay.style.display = 'flex';
@@ -540,6 +552,9 @@
         .lot-available { fill: var(--lot-color) !important; fill-opacity: 0.42; }
         .lot-inquiry { fill: var(--under) !important; fill-opacity: 0.5; }
         .lot-sold { fill: var(--sold) !important; fill-opacity: 0.56; }
+        /* Sold: paint the build envelope solid so it looks the same whatever colour is baked into the background image */
+        .lot-envelope.lot-sold { fill-opacity: 1; }
+        .lot-label-sold { fill: #fff !important; stroke: #fff !important; }
         .lot-boundary.lot-unavailable-spur,
         .lot-boundary.lot-unavailable-flamingo,
         .lot-boundary.lot-unavailable-ridge,
@@ -802,6 +817,7 @@
       injectFontFace(svg);
       attachStyles(svg);
       fixLotLabelCasing(svg);
+      styleSoldLabels(svg);
       lotData.forEach(lot => wireLot(lot, svg));
       markInactive(svg);
       syncUnavailableBackgrounds(svg);
